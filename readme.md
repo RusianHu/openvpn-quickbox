@@ -1,4 +1,4 @@
-# ovpnx.sh
+# ovpnx.sh 一键openVPN部署脚本
 
 [![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
 
