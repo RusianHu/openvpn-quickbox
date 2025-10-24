@@ -1,6 +1,6 @@
 # ovpnx.sh
 
-[![GNU Bash](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=fff)](https://www.gnu.org/software/bash/) [![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=fff)](https://ubuntu.com/download) [![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
 
 一键 OpenVPN 安装与管理脚本，围绕 Ubuntu 22.04/24.04 的默认 systemd 布局设计，旨在一条命令完成安装、证书生命周期、服务管理与彻底卸载。
 
