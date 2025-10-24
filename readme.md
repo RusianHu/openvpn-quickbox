@@ -1,8 +1,8 @@
-# ovpnx.sh
+# ovpnx.sh 一键openVPN部署脚本
 
-[![GNU Bash](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=fff)](https://www.gnu.org/software/bash/) [![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=fff)](https://ubuntu.com/download) [![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
 
-一键 OpenVPN 安装与管理脚本，围绕 Ubuntu 22.04/24.04 的默认 systemd 布局设计，旨在一条命令完成安装、证书生命周期、服务管理与彻底卸载。
+一键 OpenVPN 安装与管理脚本，基于 Ubuntu 22.04/24.04 ，一条命令完成安装、证书生命周期、服务管理与彻底卸载。
 
 ## 功能速览
 - 一键安装流程：探测系统、安装依赖、初始化 Easy-RSA PKI、生成 `dh.pem`、写入服务端配置与 systemd 服务。
@@ -12,13 +12,7 @@
 - 全量备份：所有 PKI/客户端文件集中在 `WORKDIR`（默认 `/opt/ovpnx`），包含自动备份与保留逻辑。
 
 ## 快速开始
-
-1. `git clone https://github.com/RusianHu/openvpn-quickbox.git && cd openvpn-quickbox`
-2. `chmod +x ovpnx.sh`
-3. `sudo ./ovpnx.sh`
-4. 安装向导结束后在菜单中生成客户端配置文件。
-
-直接运行单文件：
+直接运行：
 
 ```bash
 curl -fsSLo ovpnx.sh https://raw.githubusercontent.com/RusianHu/openvpn-quickbox/main/ovpnx.sh
