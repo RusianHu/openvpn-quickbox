@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache--2.0-black)](LICENSE)
 
-一键 OpenVPN 安装与管理脚本，围绕 Ubuntu 22.04/24.04 的默认 systemd 布局设计，旨在一条命令完成安装、证书生命周期、服务管理与彻底卸载。
+一键 OpenVPN 安装与管理脚本，基于 Ubuntu 22.04/24.04 ，一条命令完成安装、证书生命周期、服务管理与彻底卸载。
 
 ## 功能速览
 - 一键安装流程：探测系统、安装依赖、初始化 Easy-RSA PKI、生成 `dh.pem`、写入服务端配置与 systemd 服务。
