@@ -12,13 +12,7 @@
 - 全量备份：所有 PKI/客户端文件集中在 `WORKDIR`（默认 `/opt/ovpnx`），包含自动备份与保留逻辑。
 
 ## 快速开始
-
-1. `git clone https://github.com/RusianHu/openvpn-quickbox.git && cd openvpn-quickbox`
-2. `chmod +x ovpnx.sh`
-3. `sudo ./ovpnx.sh`
-4. 安装向导结束后在菜单中生成客户端配置文件。
-
-直接运行单文件：
+直接运行：
 
 ```bash
 curl -fsSLo ovpnx.sh https://raw.githubusercontent.com/RusianHu/openvpn-quickbox/main/ovpnx.sh
