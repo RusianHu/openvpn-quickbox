@@ -750,9 +750,18 @@ clean_revoked_certs() {
     return 0
   fi
 
-  local count=0
+  local count=0 skipped=0
   while IFS= read -r name; do
     if [[ -n "$name" ]]; then
+      local status_info status _
+      status_info=$(get_client_cert_state "$name")
+      read -r status _ <<<"$status_info"
+      if [[ "$status" == "valid" ]]; then
+        info "跳过 ${name} （当前存在有效证书）。"
+        ((skipped++))
+        continue
+      fi
+
       local cleaned=0
       if remove_client_files "$name"; then
         cleaned=1
@@ -767,6 +776,9 @@ clean_revoked_certs() {
   done <<< "$revoked_list"
 
   ok "共清理 ${count} 个已吊销证书的相关文件。"
+  if (( skipped > 0 )); then
+    info "另有 ${skipped} 个名称因已存在新证书而跳过清理。"
+  fi
 }
 
 show_status() {
