@@ -692,11 +692,34 @@ revoke_client() {
   read -r -p "输入要吊销的客户端名称：" NAME || true
   [[ -n "${NAME:-}" ]] || { warn "未输入名称"; return 0; }
 
-  pushd "$EASYRSA_DIR" >/dev/null
-  ./easyrsa --batch revoke "$NAME" <<< "yes" || true
-  ./easyrsa --batch gen-crl
-  popd >/dev/null
-  install -m 644 "$EASYRSA_DIR/pki/crl.pem" "$SERVER_DIR/crl.pem"
+  if [[ ! -d "$EASYRSA_DIR" ]]; then
+    warn "未找到 Easy-RSA 目录 (${EASYRSA_DIR})，请先执行安装/初始化。"
+    return 0
+  fi
+
+  if ! pushd "$EASYRSA_DIR" >/dev/null; then
+    warn "无法进入 Easy-RSA 目录 (${EASYRSA_DIR})。"
+    return 0
+  fi
+
+  if ! ./easyrsa --batch revoke "$NAME" <<< "yes"; then
+    warn "吊销 ${NAME} 失败，可能不存在对应的证书。"
+    popd >/dev/null || true
+    return 0
+  fi
+
+  if ! ./easyrsa --batch gen-crl; then
+    warn "生成吊销列表失败，请检查 Easy-RSA 状态。"
+    popd >/dev/null || true
+    return 0
+  fi
+
+  popd >/dev/null || true
+
+  if ! install -m 644 "$EASYRSA_DIR/pki/crl.pem" "$SERVER_DIR/crl.pem"; then
+    warn "无法更新服务器端 CRL 文件，请手动检查。"
+    return 0
+  fi
 
   # 确保 server.conf 启用 crl-verify
   if ! grep -q '^crl-verify ' "$SERVER_DIR/${SERVER_NAME}.conf"; then
@@ -729,7 +752,7 @@ revoke_client() {
 
 clean_revoked_certs() {
   local idx="$EASYRSA_DIR/pki/index.txt"
-  [[ -f "$idx" ]] || { warn "证书索引文件不存在"; return 1; }
+  [[ -f "$idx" ]] || { warn "证书索引文件不存在"; return 0; }
 
   echo
   info "扫描已吊销的证书..."
@@ -783,7 +806,9 @@ clean_revoked_certs() {
 
 show_status() {
   echo
-  systemctl --no-pager --full status "$SERVICE_NAME" | sed -n '1,70p'
+  if ! systemctl --no-pager --full status "$SERVICE_NAME" 2>&1 | sed -n '1,70p'; then
+    warn "无法获取服务状态，可能未安装或权限不足。"
+  fi
   echo
   echo "最近日志："
   journalctl -u "$SERVICE_NAME" -n 50 --no-pager || true
@@ -945,7 +970,7 @@ EOF
     4) revoke_client; pause ;;
     5) clean_revoked_certs; pause ;;
     6) show_status; pause ;;
-    7) systemctl restart "$SERVICE_NAME"; ok "已重启。"; pause ;;
+    7) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
     8) uninstall_keep_backup; pause ;;
     9) purge_all; pause ;;
     0) exit 0 ;;
