@@ -443,6 +443,29 @@ print_client_dir_hint() {
   fi
 }
 
+service_status_text() {
+  local state="未知"
+
+  if command -v systemctl >/dev/null 2>&1; then
+    local is_active=""
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+      state="运行中"
+    else
+      is_active=$(systemctl is-active "$SERVICE_NAME" 2>/dev/null || true)
+      case "$is_active" in
+        inactive) state="未运行" ;;
+        failed) state="失败（请检查日志）" ;;
+        activating) state="启动中" ;;
+        deactivating) state="停止中" ;;
+        unknown|"") state="未安装或未找到服务" ;;
+        *) state="$is_active" ;;
+      esac
+    fi
+  fi
+
+  echo "$state"
+}
+
 setup_ufw_nat() {
   local net="$1" iface="$2" port="$3" proto="$4"
   info "配置 UFW 端口放行与 NAT (出口网卡: ${iface})..."
@@ -980,6 +1003,7 @@ $(ok "OpenVPN 管理脚本 ovpnx.sh")
 工作区: $WORKDIR
 服务端配置: $SERVER_DIR/${SERVER_NAME}.conf
 服务名: $SERVICE_NAME
+服务状态: $(service_status_text)
 
 1) 安装 / 初始化（向导）
 2) 生成客户端 .ovpn（内联证书）
@@ -987,10 +1011,9 @@ $(ok "OpenVPN 管理脚本 ovpnx.sh")
 4) 吊销客户端证书
 5) 清理已吊销证书的文件
 6) 查看服务状态与日志
-7) 停止服务
-8) 重启服务
-9) 卸载（保留工作区与备份）
-10) 彻底清除（含工作区与包）
+7) 重启服务
+8) 停止服务
+9) 彻底清除（含工作区与包）
 0) 退出
 EOF
   print_client_dir_hint
@@ -999,7 +1022,7 @@ EOF
     echo
     TLS_CIPHER_NOTICE=""
   fi
-  read -r -p "请选择 [0-10]: " ans || true
+  read -r -p "请选择 [0-9]: " ans || true
   case "${ans:-}" in
     1) wizard_install; pause ;;
     2) read -r -p "输入客户端名称: " cname; [[ -n "${cname:-}" ]] && make_client "$cname"; pause ;;
@@ -1007,10 +1030,9 @@ EOF
     4) revoke_client; pause ;;
     5) clean_revoked_certs; pause ;;
     6) show_status; pause ;;
-    7) stop_service; pause ;;
-    8) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
-    9) uninstall_keep_backup; pause ;;
-    10) purge_all; pause ;;
+    7) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
+    8) stop_service; pause ;;
+    9) purge_all; pause ;;
     0) exit 0 ;;
     *) ;;
   esac
