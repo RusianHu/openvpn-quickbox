@@ -429,6 +429,20 @@ enable_ip_forward() {
   sysctl --system >/dev/null
 }
 
+print_client_dir_hint() {
+  local cdir="$WORKDIR/clients" has_files=0
+  if [[ -d "$cdir" ]]; then
+    while IFS= read -r -d '' _; do
+      has_files=1
+      break
+    done < <(find "$cdir" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
+  fi
+
+  if (( has_files )); then
+    info "客户端文件目录：${cdir} （每个子目录含 .ovpn）"
+  fi
+}
+
 setup_ufw_nat() {
   local net="$1" iface="$2" port="$3" proto="$4"
   info "配置 UFW 端口放行与 NAT (出口网卡: ${iface})..."
@@ -616,6 +630,7 @@ EOF
   ok "已生成客户端：$OVPN"
   echo "可下载命令示例（在本地电脑执行）："
   echo "scp -P 22 root@${SRV_HOST}:$OVPN ./"
+  print_client_dir_hint
 }
 
 remove_client_files() {
@@ -748,6 +763,8 @@ revoke_client() {
       info "未发现 ${NAME} 的客户端资料可清理。"
     fi
   fi
+
+  return 0
 }
 
 clean_revoked_certs() {
@@ -802,6 +819,24 @@ clean_revoked_certs() {
   if (( skipped > 0 )); then
     info "另有 ${skipped} 个名称因已存在新证书而跳过清理。"
   fi
+
+  return 0
+}
+
+stop_service() {
+  info "停止服务 ${SERVICE_NAME} ..."
+
+  if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if systemctl stop "$SERVICE_NAME"; then
+      ok "服务已停止。"
+    else
+      warn "停止服务失败，请检查 systemctl 状态。"
+    fi
+  else
+    info "服务当前未运行，无需停止。"
+  fi
+
+  return 0
 }
 
 show_status() {
@@ -952,17 +987,19 @@ $(ok "OpenVPN 管理脚本 ovpnx.sh")
 4) 吊销客户端证书
 5) 清理已吊销证书的文件
 6) 查看服务状态与日志
-7) 重启服务
-8) 卸载（保留工作区与备份）
-9) 彻底清除（含工作区与包）
+7) 停止服务
+8) 重启服务
+9) 卸载（保留工作区与备份）
+10) 彻底清除（含工作区与包）
 0) 退出
 EOF
+  print_client_dir_hint
   if [[ -n "$TLS_CIPHER_NOTICE" ]]; then
     warn "$TLS_CIPHER_NOTICE"
     echo
     TLS_CIPHER_NOTICE=""
   fi
-  read -r -p "请选择 [0-9]: " ans || true
+  read -r -p "请选择 [0-10]: " ans || true
   case "${ans:-}" in
     1) wizard_install; pause ;;
     2) read -r -p "输入客户端名称: " cname; [[ -n "${cname:-}" ]] && make_client "$cname"; pause ;;
@@ -970,9 +1007,10 @@ EOF
     4) revoke_client; pause ;;
     5) clean_revoked_certs; pause ;;
     6) show_status; pause ;;
-    7) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
-    8) uninstall_keep_backup; pause ;;
-    9) purge_all; pause ;;
+    7) stop_service; pause ;;
+    8) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
+    9) uninstall_keep_backup; pause ;;
+    10) purge_all; pause ;;
     0) exit 0 ;;
     *) ;;
   esac
