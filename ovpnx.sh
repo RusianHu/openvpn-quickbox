@@ -383,6 +383,8 @@ write_server_conf() {
   cat >"$SERVER_DIR/${SERVER_NAME}.conf" <<EOF
 port ${port}
 proto ${proto}
+; 协议说明：udp 性能更好、延迟低；tcp 在网络抖动/跨境/高丢包环境下一般更稳定（可减少 AEAD Decrypt bad packet ID 等警告，但开销略高）。
+; 如在 udp 模式下客户端经常出现网页卡顿，并伴随 AEAD Decrypt error: bad packet ID 日志，可考虑将服务端和客户端都切换为 tcp。
 dev tun
 
 user nobody
@@ -620,11 +622,35 @@ make_client() {
 
   SRV_HOST="${SRV_HOST//[[:space:]]/}"
 
+  # 从服务端配置中读取实际使用的端口与协议，避免手动修改 server.conf 后客户端与服务端不一致
+  local conf_port conf_proto
+  if [[ -f "$SERVER_DIR/${SERVER_NAME}.conf" ]]; then
+    conf_port=$(grep -E '^port ' "$SERVER_DIR/${SERVER_NAME}.conf" | awk '{print $2}' | head -n1 || true)
+    conf_proto=$(grep -E '^proto ' "$SERVER_DIR/${SERVER_NAME}.conf" | awk '{print $2}' | head -n1 || true)
+  fi
+  if [[ -n "${conf_port:-}" ]]; then
+    PORT="$conf_port"
+  fi
+  if [[ -n "${conf_proto:-}" ]]; then
+    PROTO="$conf_proto"
+  fi
+
+  local CLIENT_PROTO_LINE="proto ${PROTO}"
+  case "${PROTO,,}" in
+    tcp|tcp-server|tcp-client)
+      CLIENT_PROTO_LINE="proto tcp-client"
+      ;;
+    udp|udp4|udp6|"")
+      CLIENT_PROTO_LINE="proto udp"
+      ;;
+  esac
+
   local OVPN="$C_DIR/${NAME}.ovpn"
   cat >"$OVPN" <<EOF
 client
 dev tun
-proto ${PROTO}
+; 协议由服务端配置决定：udp 性能更好，tcp 在网络抖动/跨境环境下一般更稳定。
+${CLIENT_PROTO_LINE}
 remote ${SRV_HOST} ${PORT}
 resolv-retry infinite
 nobind
@@ -950,6 +976,7 @@ wizard_install() {
   read -r -p "监听端口 (默认 ${PORT}): " t || true
   PORT=${t:-$PORT}
 
+  info "协议选择提示：udp 性能更好、延迟低；tcp 在网络抖动/跨境/高丢包环境下一般更稳定（可减少 AEAD Decrypt bad packet ID 等重放告警，但延迟略高）。"
   read -r -p "协议 udp/tcp (默认 ${PROTO}): " t || true
   PROTO=${t:-$PROTO}
 
