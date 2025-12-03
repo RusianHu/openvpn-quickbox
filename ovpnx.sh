@@ -847,7 +847,7 @@ clean_revoked_certs() {
       read -r status _ <<<"$status_info"
       if [[ "$status" == "valid" ]]; then
         info "跳过 ${name} （当前存在有效证书）。"
-        ((skipped++))
+        ((skipped++)) || true
         continue
       fi
 
@@ -859,7 +859,7 @@ clean_revoked_certs() {
         cleaned=1
       fi
       if (( cleaned > 0 )); then
-        ((count++))
+        ((count++)) || true
       fi
     fi
   done <<< "$revoked_list"
