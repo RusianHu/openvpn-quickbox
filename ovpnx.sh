@@ -216,6 +216,51 @@ archive_easyrsa_client_files() {
   return 1
 }
 
+validate_client_name_for_cleanup() {
+  local name="$1"
+  if [[ -z "${name:-}" ]]; then
+    warn "名称为空，拒绝清理。"
+    return 1
+  fi
+  if [[ "$name" == "$SERVER_NAME" ]]; then
+    warn "检测到服务端证书名称 ${name}，拒绝清理。"
+    return 1
+  fi
+  if [[ "$name" == *"/"* || "$name" == *".."* ]]; then
+    warn "名称包含路径片段，拒绝清理：${name}"
+    return 1
+  fi
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    warn "名称包含非法字符，拒绝清理：${name}"
+    return 1
+  fi
+  return 0
+}
+
+remove_easyrsa_client_files() {
+  local name="$1"
+  local base="$EASYRSA_DIR/pki"
+  local removed=0
+
+  if ! validate_client_name_for_cleanup "$name"; then
+    return 1
+  fi
+
+  local rel
+  for rel in "private/${name}.key" "issued/${name}.crt" "reqs/${name}.req"; do
+    if [[ -e "$base/$rel" ]]; then
+      rm -f "$base/$rel"
+      removed=1
+    fi
+  done
+
+  if (( removed > 0 )); then
+    ok "已删除 ${name} 的 Easy-RSA 资料。"
+    return 0
+  fi
+
+  return 1
+}
 ensure_tls_cipher_consistency() {
   local conf="$SERVER_DIR/${SERVER_NAME}.conf"
   [[ -f "$conf" ]] || return 0
@@ -690,6 +735,10 @@ remove_client_files() {
   local client_dir="$clients_base/$name"
   local removed=0
 
+  if ! validate_client_name_for_cleanup "$name"; then
+    return 1
+  fi
+
   if [[ -d "$client_dir" ]]; then
     rm -rf "$client_dir"
     ok "已删除目录: ${client_dir}"
@@ -744,6 +793,7 @@ list_clients() {
       case "$status" in
         V) printf "有效\t%s\n" "$name" ;;
         R) printf "吊销\t%s\n" "$name" ;;
+        E) printf "过期\t%s\n" "$name" ;;
         *) printf "%s\t%s\n" "$status" "$name" ;;
       esac
     done
@@ -796,13 +846,13 @@ revoke_client() {
   ok "已吊销 ${NAME} 并生成/应用 CRL。"
 
   # 询问是否删除已吊销证书的文件
-  read -r -p "是否删除已吊销证书 ${NAME} 的相关文件？[y/N]: " del_files
+  read -r -p "是否删除已吊销证书 ${NAME} 的相关文件（不归档）？[y/N]: " del_files
   if [[ "${del_files,,}" == "y" ]]; then
     local cleaned=0
     if remove_client_files "$NAME"; then
       cleaned=1
     fi
-    if archive_easyrsa_client_files "$NAME"; then
+    if remove_easyrsa_client_files "$NAME"; then
       cleaned=1
     fi
 
@@ -821,19 +871,34 @@ clean_revoked_certs() {
   [[ -f "$idx" ]] || { warn "证书索引文件不存在"; return 0; }
 
   echo
-  info "扫描已吊销的证书..."
-  local revoked_list=$(awk '/^R/ {match($0, /CN=([^\/]+)/, arr); print arr[1]}' "$idx" | sort -u)
+  info "扫描已吊销/过期的证书..."
+  local revoked_list
+  revoked_list=$(awk '
+    /^[VRE]/ {
+      if (match($0, /CN=([^\/]+)/, arr)) {
+        name = arr[1]
+        state[name] = substr($0, 1, 1)
+      }
+    }
+    END {
+      for (name in state) {
+        if (state[name] == "R" || state[name] == "E") {
+          print name
+        }
+      }
+    }
+  ' "$idx" | sort)
 
   if [[ -z "$revoked_list" ]]; then
-    ok "没有已吊销的证书。"
+  ok "没有已吊销/过期的证书。"
     return 0
   fi
 
-  echo "已吊销的证书："
+  echo "已吊销/过期的证书："
   echo "$revoked_list" | nl
   echo
 
-  read -r -p "是否删除所有已吊销证书的客户端文件？[y/N]: " confirm
+  read -r -p "是否删除所有已吊销/过期证书的客户端文件（不归档）？[y/N]: " confirm
   if [[ "${confirm,,}" != "y" ]]; then
     info "已取消。"
     return 0
@@ -842,6 +907,11 @@ clean_revoked_certs() {
   local count=0 skipped=0
   while IFS= read -r name; do
     if [[ -n "$name" ]]; then
+      if ! validate_client_name_for_cleanup "$name"; then
+        ((skipped++)) || true
+        continue
+      fi
+
       local status_info status _
       status_info=$(get_client_cert_state "$name")
       read -r status _ <<<"$status_info"
@@ -855,7 +925,7 @@ clean_revoked_certs() {
       if remove_client_files "$name"; then
         cleaned=1
       fi
-      if archive_easyrsa_client_files "$name"; then
+      if remove_easyrsa_client_files "$name"; then
         cleaned=1
       fi
       if (( cleaned > 0 )); then
@@ -864,7 +934,7 @@ clean_revoked_certs() {
     fi
   done <<< "$revoked_list"
 
-  ok "共清理 ${count} 个已吊销证书的相关文件。"
+  ok "共清理 ${count} 个已吊销/过期证书的相关文件。"
   if (( skipped > 0 )); then
     info "另有 ${skipped} 个名称因已存在新证书而跳过清理。"
   fi
