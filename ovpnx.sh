@@ -40,7 +40,7 @@ warn()  { color 33 "$*"; }
 err()   { color 31 "$*"; }
 info()  { color 36 "$*"; }
 
-pause() { read -r -p "按回车键继续..." _; }
+pause() { read -r -p "按回车键继续..." _ || true; }
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
@@ -846,7 +846,7 @@ revoke_client() {
   ok "已吊销 ${NAME} 并生成/应用 CRL。"
 
   # 询问是否删除已吊销证书的文件
-  read -r -p "是否删除已吊销证书 ${NAME} 的相关文件（不归档）？[y/N]: " del_files
+  read -r -p "是否删除已吊销证书 ${NAME} 的相关文件（不归档）？[y/N]: " del_files || true
   if [[ "${del_files,,}" == "y" ]]; then
     local cleaned=0
     if remove_client_files "$NAME"; then
@@ -898,7 +898,7 @@ clean_revoked_certs() {
   echo "$revoked_list" | nl
   echo
 
-  read -r -p "是否删除所有已吊销/过期证书的客户端文件（不归档）？[y/N]: " confirm
+  read -r -p "是否删除所有已吊销/过期证书的客户端文件（不归档）？[y/N]: " confirm || true
   if [[ "${confirm,,}" != "y" ]]; then
     info "已取消。"
     return 0
@@ -1014,7 +1014,7 @@ uninstall_keep_backup() {
 
 purge_all() {
   warn "将彻底清除 OpenVPN 与工作区，且不可恢复！"
-  read -r -p "确认继续? [y/N] " x
+  read -r -p "确认继续? [y/N] " x || true
   if [[ "${x,,}" != "y" ]]; then
     warn "已取消。"; return 0
   fi
@@ -1121,15 +1121,15 @@ EOF
   fi
   read -r -p "请选择 [0-9]: " ans || true
   case "${ans:-}" in
-    1) wizard_install; pause ;;
-    2) read -r -p "输入客户端名称: " cname; [[ -n "${cname:-}" ]] && make_client "$cname"; pause ;;
-    3) list_clients; pause ;;
-    4) revoke_client; pause ;;
-    5) clean_revoked_certs; pause ;;
-    6) show_status; pause ;;
+    1) (wizard_install) || true; pause ;;
+    2) read -r -p "输入客户端名称: " cname || true; [[ -n "${cname:-}" ]] && (make_client "$cname") || true; pause ;;
+    3) (list_clients) || true; pause ;;
+    4) (revoke_client) || true; pause ;;
+    5) (clean_revoked_certs) || true; pause ;;
+    6) (show_status) || true; pause ;;
     7) if systemctl restart "$SERVICE_NAME"; then ok "已重启。"; else warn "重启失败，请确认服务是否已安装。"; fi; pause ;;
-    8) stop_service; pause ;;
-    9) purge_all; pause ;;
+    8) (stop_service) || true; pause ;;
+    9) (purge_all) || true; pause ;;
     0) exit 0 ;;
     *) ;;
   esac
